@@ -14,9 +14,7 @@ int main()
         cout << ip.getBroadcastIP() << endl;
         cout << ip.getNetworkID() << endl;
         cout << ip.getInt() << endl;
-        // unsigned int ipeq;
-        // cin >> ipeq;
-        // cout << IPAddress::getABCDFormat(ipeq) << endl;        
+        cout << IPAddress::getABCDFormat(ip.getInt()) << endl;        
     }
     return 0;
 }
