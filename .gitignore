@@ -1,5 +1,3 @@
-.vscode
-
 # Ignore all
 *
 
@@ -13,4 +11,5 @@
 *.code-workspace
 
 .DS_Store
+.vscode
 !spec/.DS_Store
