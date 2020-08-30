@@ -11,16 +11,16 @@ class IPAddress
 
 public:
     IPAddress(const string ipaddr, int mask);
-    static string getABCDFormat(unsigned int intEq);
-    string getBroadcastIP();
-    string getNetworkID();
-    unsigned int getInt();
+    static string GetABCDFormat(unsigned int intEq);
+    string GetBroadcastIP();
+    string GetNetworkID();
+    unsigned int GetInt();
 
 private:
-    void initMask(int mask);
-    void initIPAddress(const string ipaddr);
+    void InitMask(int mask);
+    void InitIPAddress(const string ipaddr);
 
-    uint8_t ipaddrArr[4];
-    uint8_t maskArr[4];
+    uint8_t ipaddr_arr[4];
+    uint8_t mask_arr[4];
 };
 #endif // __IPADDRESS_H__

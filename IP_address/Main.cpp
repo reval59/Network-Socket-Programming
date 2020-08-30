@@ -11,10 +11,10 @@ int main()
         cin >> ipaddr;
         cin >> mask;
         IPAddress ip(ipaddr, mask);
-        cout << ip.getBroadcastIP() << endl;
-        cout << ip.getNetworkID() << endl;
-        cout << ip.getInt() << endl;
-        cout << IPAddress::getABCDFormat(ip.getInt()) << endl;        
+        cout << ip.GetBroadcastIP() << endl;
+        cout << ip.GetNetworkID() << endl;
+        cout << ip.GetInt() << endl;
+        cout << IPAddress::GetABCDFormat(ip.GetInt()) << endl;        
     }
     return 0;
 }
