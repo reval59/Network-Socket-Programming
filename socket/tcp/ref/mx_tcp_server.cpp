@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <sys/select.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -11,18 +13,6 @@
 
 #define MAX_CLIENT_SUPPORTED    32
 #define SERVER_PORT     2000 /*Server process is running on this port no. Client has to send data to this port no*/
-typedef struct _test_struct{
-    
-    unsigned int a;
-    unsigned int b;
-} test_struct_t;
-
-
-typedef struct result_struct_{
-
-    unsigned int c;
-
-} result_struct_t;
 
 test_struct_t test_struct;
 result_struct_t res_struct;
@@ -160,7 +150,7 @@ setup_tcp_server_communication(){
         re_init_readfds(&readfds);               /*Copy the entire monitored FDs to readfds*/
         //FD_SET(master_sock_tcp_fd, &readfds);  /*Add the socket to this set on which our server is running*/
 
-        printf("blocked on select System call...\n");
+        printf("C++ blocked on select System call...\n");
 
         /*Step 6 : Wait for client connection*/
         /*state Machine state 1 */
@@ -178,7 +168,7 @@ setup_tcp_server_communication(){
              * life of connection with this client to send and recieve msg. Master socket is used only for accepting
              * new client's connection and not for data exchange with the client*/
             /* state Machine state 2*/
-            comm_socket_fd = accept(master_sock_tcp_fd, (struct sockaddr *)&client_addr, &addr_len);
+            comm_socket_fd = accept(master_sock_tcp_fd, (struct sockaddr *)&client_addr, (socklen_t *) &addr_len);
             if(comm_socket_fd < 0){
 
                 /* if accept failed to return a socket descriptor, display error and exit */
@@ -201,7 +191,9 @@ setup_tcp_server_communication(){
                     comm_socket_fd = monitored_fd_set[i];
 
                     memset(data_buffer, 0, sizeof(data_buffer));
-                    sent_recv_bytes = recvfrom(comm_socket_fd, (char *)data_buffer, sizeof(data_buffer), 0, (struct sockaddr *)&client_addr, &addr_len);
+                    // sent_recv_bytes = recvfrom(comm_socket_fd, (char *)data_buffer, sizeof(data_buffer), 0, (struct sockaddr *)&client_addr, (socklen_t *) &addr_len);
+                    test_struct_t client_data;
+                    sent_recv_bytes = recvfrom(comm_socket_fd, &client_data, sizeof(test_struct_t), 0, (struct sockaddr *)&client_addr, (socklen_t *) &addr_len);
 
                     printf("Server recvd %d bytes from client %s:%u\n", sent_recv_bytes,
                             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
@@ -216,12 +208,12 @@ setup_tcp_server_communication(){
                     }
 
 
-                    test_struct_t *client_data = (test_struct_t *)data_buffer;
+                    // test_struct_t *client_data = (test_struct_t *)data_buffer;
 
                     /* If the client sends a special msg to server, then server close the client connection
                      * for forever*/
                     /*Step 9 */
-                    if(client_data->a == 0 && client_data->b ==0){
+                    if(client_data.a == 0 && client_data.b ==0){
 
                         close(comm_socket_fd);
                         remove_from_monitored_fd_set(comm_socket_fd);
@@ -231,10 +223,10 @@ setup_tcp_server_communication(){
                     }
 
                     result_struct_t result;
-                    result.c = client_data->a + client_data->b;
+                    result.c = client_data.a + client_data.b;
 
                     /* Server replying back to client now*/
-                    sent_recv_bytes = sendto(comm_socket_fd, (char *)&result, sizeof(result_struct_t), 0,
+                    sent_recv_bytes = sendto(comm_socket_fd, &result, sizeof(result_struct_t), 0,
                             (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
 
                     printf("Server sent %d bytes in reply to client\n", sent_recv_bytes);
@@ -245,7 +237,8 @@ setup_tcp_server_communication(){
     }/*step 10 : wait for new client request again*/    
 }
 
-int main(int argc, char **argv){
+int
+main(int argc, char **argv){
 
     setup_tcp_server_communication();
     return 0;

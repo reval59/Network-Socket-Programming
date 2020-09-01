@@ -52,7 +52,7 @@ void SetupTCPClient()
         std::cout << "# of bytes sent: " << sent_recv_bytes << std::endl;
 
         // Step 6. Receive response from server
-        sent_recv_bytes = recvfrom(sock_fd, &result, sizeof(result_struct_t), 0, (struct sockaddr *) &dest, (socklen_t *) &addr_len);
+        sent_recv_bytes = recv(sock_fd, &result, sizeof(result_struct_t), 0);
         std::cout << "# of bytes received: " << sent_recv_bytes << std::endl;
         std::cout << "Result: " << result.c << std::endl;
     }

@@ -11,18 +11,6 @@
 
 #define MAX_CLIENT_SUPPORTED    32
 #define SERVER_PORT     2000 /*Server process is running on this port no. Client has to send data to this port no*/
-typedef struct _test_struct{
-    
-    unsigned int a;
-    unsigned int b;
-} test_struct_t;
-
-
-typedef struct result_struct_{
-
-    unsigned int c;
-
-} result_struct_t;
 
 test_struct_t test_struct;
 result_struct_t res_struct;
@@ -245,7 +233,8 @@ setup_tcp_server_communication(){
     }/*step 10 : wait for new client request again*/    
 }
 
-int main(int argc, char **argv){
+int
+main(int argc, char **argv){
 
     setup_tcp_server_communication();
     return 0;
