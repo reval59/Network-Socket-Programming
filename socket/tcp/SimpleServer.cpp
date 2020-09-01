@@ -91,7 +91,6 @@ void SetupTCPServer()
             while (true)
             {
                 std::cout << "Server ready to serve client msgs" << std::endl;
-                // memset(data_buffer, 0, sizeof(data_buffer));
 
                 // Step 8. Server recieving the data from client. Client IP and PORT no will be stored in client_addr
                 test_struct_t client_data;
