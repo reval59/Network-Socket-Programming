@@ -54,6 +54,7 @@ private:
     int master_sock_fd_;
     int sent_bytes_;
     int recv_bytes_;
+    char recv_buffer_[1024];
 
     bool AddToMonitoredFDSet(int fd)
     {
@@ -129,20 +130,21 @@ private:
         std::cout << "ready to serve the connected client" << std::endl;
         sockaddr_in client_addr;
         socklen_t client_addr_len;
-        Request req;
         // serialization lib should be used in practice
-        recv_bytes_ = recvfrom(fd, &req, sizeof(req), 0, (sockaddr *)&client_addr, &client_addr_len);
+        memset(recv_buffer_, 0, sizeof(recv_buffer_));
+        recv_bytes_ = recvfrom(fd, reinterpret_cast<char *>(recv_buffer_), sizeof(recv_buffer_), 0, (sockaddr *)&client_addr, &client_addr_len);
+        Request *req = reinterpret_cast<Request *>(recv_buffer_);
         std::cout << "received data from the client:"
-                  << " a: " << req.a << " b: " << req.b << std::endl;
-        if (req.a == 0 && req.b == 0)
+                  << " a: " << req->a << " b: " << req->b << std::endl;
+        if (req->a == 0 && req->b == 0)
         {
             std::cout << "connection closed with client " << inet_ntoa(client_addr.sin_addr) << ':' << ntohs(client_addr.sin_port) << std::endl;
             close(fd);
             RemoveFromMonitoredFDSet(fd);
         }
         Response res;
-        res.c = req.a + req.b;
-        sent_bytes_ = sendto(fd, &res, sizeof(res), 0, (sockaddr *)&client_addr, sizeof(sockaddr));
+        res.c = req->a + req->b;
+        sent_bytes_ = sendto(fd, reinterpret_cast<const char*>(&res), sizeof(res), 0, (sockaddr *)&client_addr, sizeof(sockaddr));
         std::cout << "sent response back to the client " << inet_ntoa(client_addr.sin_addr) << ':' << ntohs(client_addr.sin_port) << std::endl;
     }
 };
