@@ -29,10 +29,10 @@ public:
             std::cin >> req.a;
             std::cout << "Enter b: ";
             std::cin >> req.b;
-            sent_bytes_ = sendto(sock_fd_, reinterpret_cast<const char*>(&req), sizeof(req), 0, (sockaddr *) &server_addr_, sizeof(sockaddr));
+            sent_bytes_ = send(sock_fd_, reinterpret_cast<const char*>(&req), sizeof(req), 0);
             std::cout << "No. of bytes sent: " << sent_bytes_ << std::endl;
             Response res;
-            recv_bytes_ = recvfrom(sock_fd_, reinterpret_cast<char *>(&res), sizeof(res), 0, (sockaddr *) &server_addr_, (socklen_t *) &server_addr_len_);
+            recv_bytes_ = recv(sock_fd_, reinterpret_cast<char *>(&res), sizeof(res), 0);
             std::cout << "No. of bytes recvd: " << recv_bytes_ << " c: " <<  res.c <<std::endl;
         }
         return true;

@@ -132,7 +132,7 @@ private:
         socklen_t client_addr_len;
         // serialization lib should be used in practice
         memset(recv_buffer_, 0, sizeof(recv_buffer_));
-        recv_bytes_ = recvfrom(fd, reinterpret_cast<char *>(recv_buffer_), sizeof(recv_buffer_), 0, (sockaddr *)&client_addr, &client_addr_len);
+        recv_bytes_ = recv(fd, reinterpret_cast<char *>(recv_buffer_), sizeof(recv_buffer_), 0);
         Request *req = reinterpret_cast<Request *>(recv_buffer_);
         std::cout << "received data from the client:"
                   << " a: " << req->a << " b: " << req->b << std::endl;
@@ -144,7 +144,7 @@ private:
         }
         Response res;
         res.c = req->a + req->b;
-        sent_bytes_ = sendto(fd, reinterpret_cast<const char*>(&res), sizeof(res), 0, (sockaddr *)&client_addr, sizeof(sockaddr));
+        sent_bytes_ = send(fd, reinterpret_cast<const char*>(&res), sizeof(res), 0);
         std::cout << "sent response back to the client " << inet_ntoa(client_addr.sin_addr) << ':' << ntohs(client_addr.sin_port) << std::endl;
     }
 };
