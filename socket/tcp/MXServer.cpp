@@ -1,252 +1,154 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
+#include <sys/select.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <memory.h>
-#include <errno.h>
-#include "common.h"
 #include <arpa/inet.h>
-
-
-#define MAX_CLIENT_SUPPORTED    32
-#define SERVER_PORT     2000 /*Server process is running on this port no. Client has to send data to this port no*/
-typedef struct _test_struct{
-    
-    unsigned int a;
-    unsigned int b;
-} test_struct_t;
-
-
-typedef struct result_struct_{
-
-    unsigned int c;
-
-} result_struct_t;
-
-test_struct_t test_struct;
-result_struct_t res_struct;
-char data_buffer[1024];
-
-int monitored_fd_set[32];
-
-static void
-intitiaze_monitor_fd_set(){
-
-    int i = 0;
-    for(; i < MAX_CLIENT_SUPPORTED; i++)
-        monitored_fd_set[i] = -1;
-}
-
-static void 
-add_to_monitored_fd_set(int skt_fd){
-
-    int i = 0;
-    for(; i < MAX_CLIENT_SUPPORTED; i++){
-
-        if(monitored_fd_set[i] != -1)
-            continue;   
-        monitored_fd_set[i] = skt_fd;
-        break;
-    }
-}
-
-static void
-remove_from_monitored_fd_set(int skt_fd){
-
-    int i = 0;
-    for(; i < MAX_CLIENT_SUPPORTED; i++){
-
-        if(monitored_fd_set[i] != skt_fd)
-            continue;
-
-        monitored_fd_set[i] = -1;
-        break;
-    }
-}
-
-static void
-re_init_readfds(fd_set *fd_set_ptr){
-
-    FD_ZERO(fd_set_ptr);
-    int i = 0;
-    for(; i < MAX_CLIENT_SUPPORTED; i++){
-        if(monitored_fd_set[i] != -1){
-            FD_SET(monitored_fd_set[i], fd_set_ptr);
-        }
-    }
-}
-
-static int 
-get_max_fd(){
-
-    int i = 0;
-    int max = -1;
-
-    for(; i < MAX_CLIENT_SUPPORTED; i++){
-        if(monitored_fd_set[i] > max)
-            max = monitored_fd_set[i];
-    }
-
-    return max;
-}
-
-void
-setup_tcp_server_communication(){
-
-    /*Step 1 : Initialization*/
-    /*Socket handle and other variables*/
-    int master_sock_tcp_fd = 0, /*Master socket file descriptor, used to accept new client connection only, no data exchange*/
-        sent_recv_bytes = 0, 
-        addr_len = 0, 
-        opt = 1;
-
-    int comm_socket_fd = 0;     /*client specific communication socket file descriptor, used for only data exchange/communication between client and server*/
-    fd_set readfds;             /*Set of file descriptor on which select() polls. Select() unblocks whever data arrives on any fd present in this set*/
-    /*variables to hold server information*/
-    struct sockaddr_in server_addr, /*structure to store the server and client info*/
-                       client_addr;
-
-    /* Just drain the array of monitored file descriptors (sockets)*/
-    intitiaze_monitor_fd_set();
-
-    /*step 2: tcp master socket creation*/
-    if ((master_sock_tcp_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP )) == -1)
+#include <vector>
+#include "CommData.h"
+class Server
+{
+public:
+    Server(int port, int max_client_no) : sent_bytes_(0), recv_bytes_(0), max_client_no_(max_client_no), monitored_fdset_(max_client_no, -1), cur_fd_no(0)
     {
-        printf("socket creation failed\n");
-        exit(1);
+        assert(max_client_no > 0 && port > 0);
+        master_sock_fd_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        std::cout << "socket created" << std::endl;
+        assert(master_sock_fd_ != -1);
+        addr_.sin_family = AF_INET;
+        addr_.sin_port = port;
+        addr_.sin_addr.s_addr = INADDR_ANY;
+        assert(bind(master_sock_fd_, (sockaddr *)&addr_, sizeof(sockaddr)) != -1);
+        std::cout << "bind sucessful" << std::endl;
+        int queue_sz = 5;
+        assert(listen(master_sock_fd_, queue_sz) >= 0);
+        AddToMonitoredFDSet(master_sock_fd_);
+        std::cout << "listen sucessful" << std::endl;
     }
-
-    /*Step 3: specify server Information*/
-    server_addr.sin_family = AF_INET;/*This socket will process only ipv4 network packets*/
-    server_addr.sin_port = SERVER_PORT;/*Server will process any data arriving on port no 2000*/
-    server_addr.sin_addr.s_addr = INADDR_ANY; //3232249957; //( = 192.168.56.101); /*Server's IP address, means, Linux will send all data whose destination address = address of any local interface of this machine, in this case it is 192.168.56.101*/
-
-    addr_len = sizeof(struct sockaddr);
-
-    /* Bind the server. Binding means, we are telling kernel(OS) that any data 
-     * you recieve with dest ip address = 192.168.56.101, and tcp port no = 2000, pls send that data to this process
-     * bind() is a mechnism to tell OS what kind of data server process is interested in to recieve. Remember, server machine
-     * can run multiple server processes to process different data and service different clients. Note that, bind() is 
-     * used on server side, not on client side*/
-
-    if (bind(master_sock_tcp_fd, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1)
+    void Start()
     {
-        printf("socket bind failed\n");
-        return;
-    }
-
-    /*Step 4 : Tell the Linux OS to maintain the queue of max length to Queue incoming
-     * client connections.*/
-    if (listen(master_sock_tcp_fd, 5)<0)  
-    {
-        printf("listen failed\n");
-        return;
-    }
-
-
-
-
-    /*Add master socket to Monitored set of FDs*/
-    add_to_monitored_fd_set(master_sock_tcp_fd);
-
-    /* Server infinite loop for servicing the client*/
-
-
-    while(1){
-
-        /*Step 5 : initialze and dill readfds*/
-        //FD_ZERO(&readfds);                     /* Initialize the file descriptor set*/
-        re_init_readfds(&readfds);               /*Copy the entire monitored FDs to readfds*/
-        //FD_SET(master_sock_tcp_fd, &readfds);  /*Add the socket to this set on which our server is running*/
-
-        printf("blocked on select System call...\n");
-
-        /*Step 6 : Wait for client connection*/
-        /*state Machine state 1 */
-        select(get_max_fd() + 1, &readfds, NULL, NULL, NULL); /*Call the select system cal, server process blocks here. Linux OS keeps this process blocked untill the data arrives on any of the file Drscriptors in the 'readfds' set*/
-
-        /*Some data on some fd present in monitored fd set has arrived, Now check on which File descriptor the data arrives, and process accordingly*/
-
-        /*If Data arrives on master socket FD*/
-        if (FD_ISSET(master_sock_tcp_fd, &readfds))
-        { 
-            /*Data arrives on Master socket only when new client connects with the server (that is, 'connect' call is invoked on client side)*/
-            printf("New connection recieved recvd, accept the connection. Client and Server completes TCP-3 way handshake at this point\n");
-
-            /* step 7 : accept() returns a new temporary file desriptor(fd). Server uses this 'comm_socket_fd' fd for the rest of the
-             * life of connection with this client to send and recieve msg. Master socket is used only for accepting
-             * new client's connection and not for data exchange with the client*/
-            /* state Machine state 2*/
-            comm_socket_fd = accept(master_sock_tcp_fd, (struct sockaddr *)&client_addr, &addr_len);
-            if(comm_socket_fd < 0){
-
-                /* if accept failed to return a socket descriptor, display error and exit */
-                printf("accept error : errno = %d\n", errno);
-                exit(0);
-            }
-
-            add_to_monitored_fd_set(comm_socket_fd); 
-            printf("Connection accepted from client : %s:%u\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-        }
-        else /* Data srrives on some other client FD*/
+        while (true)
         {
-
-            int i = 0, comm_socket_fd = -1;
-            for(; i < MAX_CLIENT_SUPPORTED; i++){
-
-
-                if(FD_ISSET(monitored_fd_set[i], &readfds)){/*Find the clinet FD on which Data has arrived*/
-
-                    comm_socket_fd = monitored_fd_set[i];
-
-                    memset(data_buffer, 0, sizeof(data_buffer));
-                    sent_recv_bytes = recvfrom(comm_socket_fd, (char *)data_buffer, sizeof(data_buffer), 0, (struct sockaddr *)&client_addr, &addr_len);
-
-                    printf("Server recvd %d bytes from client %s:%u\n", sent_recv_bytes,
-                            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-
-                    if(sent_recv_bytes == 0){
-                        /*If server recvs empty msg from client, server may close the connection and wait
-                         * for fresh new connection from client - same or different*/
-                        close(comm_socket_fd);
-                        remove_from_monitored_fd_set(comm_socket_fd);
-                        break; /*goto step 5*/
-
-                    }
-
-
-                    test_struct_t *client_data = (test_struct_t *)data_buffer;
-
-                    /* If the client sends a special msg to server, then server close the client connection
-                     * for forever*/
-                    /*Step 9 */
-                    if(client_data->a == 0 && client_data->b ==0){
-
-                        close(comm_socket_fd);
-                        remove_from_monitored_fd_set(comm_socket_fd);
-                        printf("Server closes connection with client : %s:%u\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-                        /*Goto state machine State 1*/
-                        break;/*Get out of inner while loop, server is done with this client, time to check for new connection request by executing selct()*/
-                    }
-
-                    result_struct_t result;
-                    result.c = client_data->a + client_data->b;
-
-                    /* Server replying back to client now*/
-                    sent_recv_bytes = sendto(comm_socket_fd, (char *)&result, sizeof(result_struct_t), 0,
-                            (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
-
-                    printf("Server sent %d bytes in reply to client\n", sent_recv_bytes);
-                }
+            ReinitMonitoredFDSet();
+            std::cout << "blocked on select system call" << std::endl;
+            select(GetMaxFD() + 1, &read_fdset_, nullptr, nullptr, nullptr);
+            const int activated_fd = GetActivatedFD();
+            if (activated_fd == master_sock_fd_)
+            {
+                AcceptConn();
+            }
+            else
+            {
+                HandleRequest(activated_fd);
             }
         }
+    }
 
-    }/*step 10 : wait for new client request again*/    
-}
+private:
+    sockaddr_in addr_;
+    fd_set read_fdset_;
+    int max_client_no_;
+    int cur_fd_no;
+    std::vector<int> monitored_fdset_;
+    int master_sock_fd_;
+    int sent_bytes_;
+    int recv_bytes_;
 
-int main(int argc, char **argv){
+    bool AddToMonitoredFDSet(int fd)
+    {
+        assert(monitored_fdset_.size() == max_client_no_);
+        for (int i = 0; i < monitored_fdset_.size(); i++)
+        {
+            if (monitored_fdset_[i] != -1)
+                continue;
+            monitored_fdset_[i] = fd;
+            cur_fd_no++;
+            return true;
+        }
+        return false;
+    }
 
-    setup_tcp_server_communication();
-    return 0;
+    bool RemoveFromMonitoredFDSet(int fd)
+    {
+        assert(monitored_fdset_.size() == max_client_no_);
+        for (int i = 0; i < monitored_fdset_.size(); i++)
+        {
+            if (monitored_fdset_[i] != fd)
+                continue;
+            monitored_fdset_[i] = -1;
+            cur_fd_no--;
+            return true;
+        }
+        return false;
+    }
+    void ReinitMonitoredFDSet()
+    {
+        assert(monitored_fdset_.size() == max_client_no_);
+        FD_ZERO(&read_fdset_);
+        for (int i = 0; i < monitored_fdset_.size(); i++)
+        {
+            if (monitored_fdset_[i] == -1)
+                continue;
+            FD_SET(monitored_fdset_[i], &read_fdset_);
+        }
+    }
+    int GetMaxFD()
+    {
+        assert(monitored_fdset_.size() == max_client_no_);
+        int maxfd = monitored_fdset_[0];
+        for (int i = 1; i < monitored_fdset_.size(); i++)
+        {
+            if (monitored_fdset_[i] > maxfd)
+                maxfd = monitored_fdset_[i];
+        }
+        return maxfd;
+    }
+    int GetActivatedFD()
+    {
+        assert(monitored_fdset_.size() == max_client_no_);
+        for (int i = 0; i < monitored_fdset_.size(); i++)
+        {
+            if (FD_ISSET(monitored_fdset_[i], &read_fdset_))
+                return monitored_fdset_[i];
+        }
+        return -1;
+    }
+    void AcceptConn()
+    {
+        std::cout << "new connection request received" << std::endl;
+        sockaddr_in client_addr;
+        socklen_t client_addr_len;
+        int comm_sock_fd = accept(master_sock_fd_, (sockaddr *)&client_addr, &client_addr_len);
+        assert(comm_sock_fd >= 0);
+        AddToMonitoredFDSet(comm_sock_fd);
+        std::cout << "connection request accepted from client " << inet_ntoa(client_addr.sin_addr) << ':' << ntohs(client_addr.sin_port) << std::endl;
+    }
+    void HandleRequest(int fd)
+    {
+        std::cout << "ready to serve the connected client" << std::endl;
+        sockaddr_in client_addr;
+        socklen_t client_addr_len;
+        Request req;
+        // serialization lib should be used in practice
+        recv_bytes_ = recvfrom(fd, &req, sizeof(req), 0, (sockaddr *)&client_addr, &client_addr_len);
+        std::cout << "received data from the client:"
+                  << " a: " << req.a << " b: " << req.b << std::endl;
+        if (req.a == 0 && req.b == 0)
+        {
+            std::cout << "connection closed with client " << inet_ntoa(client_addr.sin_addr) << ':' << ntohs(client_addr.sin_port) << std::endl;
+            close(fd);
+            RemoveFromMonitoredFDSet(fd);
+        }
+        Response res;
+        res.c = req.a + req.b;
+        sent_bytes_ = sendto(fd, &res, sizeof(res), 0, (sockaddr *)&client_addr, sizeof(sockaddr));
+        std::cout << "sent response back to the client " << inet_ntoa(client_addr.sin_addr) << ':' << ntohs(client_addr.sin_port) << std::endl;
+    }
+};
+
+int main()
+{
+    Server server(2000, 32);
+    server.Start();
 }
