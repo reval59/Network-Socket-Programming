@@ -144,13 +144,10 @@ process_GET_request(char *URL, unsigned int *response_len)
     char *header = (char *)calloc(1, 248 + content_len_str);
     strcpy(header, "HTTP/1.1 200 OK\n");
     strcat(header, "Server: My Personal HTTP Server\n");
-    strcat(header, "Content-Length: ");
+    strcat(header, "Content-Length: 2048\n");
     strcat(header, "Connection: close\n");
     //strcat(header, itoa(content_len_str));
-    strcat(header, "2048");
-    strcat(header, "\n");
     strcat(header, "Content-Type: text/html; charset=UTF-8\n");
-    strcat(header, "\n");
 
     strcat(header, response);
     content_len_str = strlen(header);
