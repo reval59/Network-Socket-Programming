@@ -148,6 +148,7 @@ process_GET_request(char *URL, unsigned int *response_len)
     strcat(header, "Connection: close\n");
     //strcat(header, itoa(content_len_str));
     strcat(header, "Content-Type: text/html; charset=UTF-8\n");
+    strcat(header, "\n");
 
     strcat(header, response);
     content_len_str = strlen(header);
