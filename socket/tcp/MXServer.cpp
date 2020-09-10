@@ -10,7 +10,7 @@
 class Server
 {
 public:
-    Server(int port, int max_client_no) : sent_bytes_(0), recv_bytes_(0), max_client_no_(max_client_no), monitored_fdset_(max_client_no, -1), cur_fd_no(0)
+    Server(int port, int max_client_no) : sent_bytes_(0), recv_bytes_(0), max_client_no_(max_client_no), monitored_fdset_(max_client_no, -1), cur_fd_no_(0)
     {
         assert(max_client_no > 0 && port > 0);
         master_sock_fd_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -49,7 +49,7 @@ private:
     sockaddr_in addr_;
     fd_set read_fdset_;
     int max_client_no_;
-    int cur_fd_no;
+    int cur_fd_no_;
     std::vector<int> monitored_fdset_;
     int master_sock_fd_;
     int sent_bytes_;
@@ -64,7 +64,7 @@ private:
             if (monitored_fdset_[i] != -1)
                 continue;
             monitored_fdset_[i] = fd;
-            cur_fd_no++;
+            cur_fd_no_++;
             return true;
         }
         return false;
@@ -78,7 +78,7 @@ private:
             if (monitored_fdset_[i] != fd)
                 continue;
             monitored_fdset_[i] = -1;
-            cur_fd_no--;
+            cur_fd_no_--;
             return true;
         }
         return false;
