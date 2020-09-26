@@ -83,6 +83,8 @@ process_GET_request(char *URL, unsigned int *response_len)
 
     token[0] = strtok(URL, delimeter);
     token[1] = strtok(0, delimeter);
+    if (token[1] == NULL)
+        return NULL;
     /*token[1] = dept=CSE&rollno=10305042*/
     delimeter[0] = '&';
 
@@ -144,9 +146,11 @@ process_GET_request(char *URL, unsigned int *response_len)
     char *header = (char *)calloc(1, 248 + content_len_str);
     strcpy(header, "HTTP/1.1 200 OK\n");
     strcat(header, "Server: My Personal HTTP Server\n");
-    strcat(header, "Content-Length: 2048\n");
+    strcat(header, "Content-Length: ");
     strcat(header, "Connection: close\n");
     //strcat(header, itoa(content_len_str));
+    strcat(header, "2048");
+    strcat(header, "\n");
     strcat(header, "Content-Type: text/html; charset=UTF-8\n");
     strcat(header, "\n");
 
@@ -340,9 +344,11 @@ void setup_tcp_server_communication()
                                              (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
                     free(response);
                     printf("Server sent %d bytes in reply to client\n", sent_recv_bytes);
-                    //close(comm_socket_fd);
-                    //break;
+                    close(comm_socket_fd);
+                    break;
                 }
+                close(comm_socket_fd);
+                break;
                 /*Goto state machine State 3*/
             }
         }
